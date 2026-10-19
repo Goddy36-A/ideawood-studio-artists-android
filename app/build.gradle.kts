@@ -43,8 +43,8 @@ android {
 }
 
 dependencies {
-    // FFmpeg for Android (community-maintained continuation of FFmpegKit; "full" = libass, fontconfig, xfade, etc.)
-    implementation("dev.ffmpegkit-maintained:ffmpeg-kit-full:7.1.6")
+    // FFmpegKit rebuild that still ships 32-bit ARM (armeabi-v7a) as well as arm64 (the dev.ffmpegkit-maintained fork is arm64-only). Same com.arthenica.ffmpegkit API.
+    implementation("com.moizhassan.ffmpeg:ffmpeg-kit-16kb:6.1.1")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("androidx.core:core-ktx:1.13.1")

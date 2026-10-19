@@ -141,6 +141,14 @@ jobs:
           mkdir -p logs
           unzip -l dist/*.apk | grep -E "lib/" > logs/apk-libs.txt || true
           for a in arm64-v8a armeabi-v7a; do echo "$a: $(grep -c "lib/$a/" logs/apk-libs.txt) files" >> logs/apk-libs-summary.txt; done
+      - name: Check FFmpeg features inside the APK (debug)
+        run: |
+          mkdir -p logs x && cd x && unzip -q -o ../dist/*.apk "lib/armeabi-v7a/*" "lib/arm64-v8a/*" || true
+          for f in lib/armeabi-v7a/libavfilter_neon.so lib/armeabi-v7a/libavfilter.so lib/armeabi-v7a/libavcodec_neon.so; do
+            [ -f "$f" ] || continue
+            echo "$f: libass=$(strings -a $f | grep -ci libass) xfade=$(strings -a $f | grep -ci xfade) fontconfig=$(strings -a $f | grep -ci fontconfig) x264=$(strings -a $f | grep -ci x264) mediacodec=$(strings -a $f | grep -ci h264_mediacodec)" >> ../logs/apk-ffmpeg-features.txt
+          done
+          cd .. && ls -la x/lib/armeabi-v7a >> logs/apk-ffmpeg-features.txt 2>&1 || true
       - uses: actions/upload-artifact@v4
         with: { name: IdeawoodStudio-Artists-apk, path: dist/*.apk }
       - name: Publish logs to branch ci-logs-apk (for debugging without a browser)
