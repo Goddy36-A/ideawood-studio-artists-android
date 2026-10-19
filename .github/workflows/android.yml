@@ -69,8 +69,8 @@ jobs:
         id: cache
         with:
           path: whisper-out
-          key: whisper-android-${{ env.WHISPER_TAG }}-v1
-      - name: Build whisper-cli for arm64 (baseline + fast CPU variants)
+          key: whisper-android-${{ env.WHISPER_TAG }}-v2
+      - name: Build whisper-cli for arm64 (baseline + fast) and armeabi-v7a
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p logs
@@ -81,22 +81,23 @@ jobs:
           echo "Using NDK: $NDK"
           git clone --depth 1 --branch "$WHISPER_TAG" https://github.com/ggml-org/whisper.cpp.git whisper.cpp
           mkdir -p whisper-out
-          build() { # $1 = name, $2 = extra cmake flags
+          build() { # $1 = name, $2 = ABI, $3 = extra cmake flags, $4 = output file name
             cmake -S whisper.cpp -B "build-$1" -G Ninja \
               -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
-              -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-29 -DANDROID_STL=c++_static \
+              -DANDROID_ABI=$2 -DANDROID_PLATFORM=android-29 -DANDROID_STL=c++_static \
               -DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON \
               -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
               -DWHISPER_BUILD_EXAMPLES=ON -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_SERVER=OFF -DWHISPER_SDL2=OFF \
-              -DGGML_OPENMP=OFF -DGGML_NATIVE=OFF -DGGML_LLAMAFILE=OFF $2
+              -DGGML_OPENMP=OFF -DGGML_NATIVE=OFF -DGGML_LLAMAFILE=OFF $3
             cmake --build "build-$1" --target whisper-cli -j"$(nproc)"
             BIN=$(find "build-$1" -name whisper-cli -type f | head -n1)
             "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" "$BIN"
-            cp "$BIN" "whisper-out/$3"
+            mkdir -p "whisper-out/$2" && cp "$BIN" "whisper-out/$2/$4"
           }
-          build base "" libwhisper_cli.so
-          build fast "-DGGML_CPU_ARM_ARCH=armv8.2-a+dotprod+fp16" libwhisper_cli_fast.so
-          ls -la whisper-out
+          build base arm64-v8a "" libwhisper_cli.so
+          build fast arm64-v8a "-DGGML_CPU_ARM_ARCH=armv8.2-a+dotprod+fp16" libwhisper_cli_fast.so
+          build v7 armeabi-v7a "-DANDROID_ARM_NEON=ON" libwhisper_cli.so
+          ls -laR whisper-out
       - uses: actions/upload-artifact@v4
         with: { name: whisper-cli-android, path: whisper-out }
       - name: Publish logs to branch ci-logs-whisper (for debugging without a browser)
@@ -120,7 +121,7 @@ jobs:
         with: { distribution: temurin, java-version: 17 }
       - uses: gradle/actions/setup-gradle@v4
       - uses: actions/download-artifact@v4
-        with: { name: whisper-cli-android, path: app/src/main/jniLibs/arm64-v8a }
+        with: { name: whisper-cli-android, path: app/src/main/jniLibs }
       - name: Create a debug signing key (sideload builds)
         run: |
           mkdir -p ~/.android
