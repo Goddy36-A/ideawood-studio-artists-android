@@ -136,6 +136,11 @@ jobs:
         run: |
           mkdir -p dist
           cp app/build/outputs/apk/release/*.apk dist/IdeawoodStudio-Artists-${GITHUB_RUN_NUMBER}.apk
+      - name: List native libs inside the APK (debug)
+        run: |
+          mkdir -p logs
+          unzip -l dist/*.apk | grep -E "lib/" > logs/apk-libs.txt || true
+          for a in arm64-v8a armeabi-v7a; do echo "$a: $(grep -c "lib/$a/" logs/apk-libs.txt) files" >> logs/apk-libs-summary.txt; done
       - uses: actions/upload-artifact@v4
         with: { name: IdeawoodStudio-Artists-apk, path: dist/*.apk }
       - name: Publish logs to branch ci-logs-apk (for debugging without a browser)
