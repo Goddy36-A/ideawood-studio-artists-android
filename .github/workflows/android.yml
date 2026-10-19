@@ -1,0 +1,110 @@
+name: Android build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  # Same whisper.cpp release the Windows app bundles, so speech timing behaves identically
+  WHISPER_TAG: b5130
+
+jobs:
+  # 1) The Kotlin engine must behave exactly like the desktop Python engine, and the render commands it
+  #    produces must really work in ffmpeg + libass.
+  engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Parity tests (Kotlin vs desktop engine)
+        run: ./gradlew --no-daemon :app:testDebugUnitTest
+      - name: Render real clips with the generated ffmpeg commands
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
+          cd app/build/smoke
+          for d in job*; do
+            ( cd "$d"
+              mkdir -p fonts && cp ../../../src/main/assets/fonts/*.ttf fonts/
+              ffmpeg -v error -y -f lavfi -i "sine=frequency=330:duration=70" song.wav
+              ffmpeg -v error -y -f lavfi -i testsrc2=s=1920x1080 -frames:v 1 img.jpg
+              mapfile -t ARGS < cmd.txt
+              ffmpeg -v error "${ARGS[@]}"
+              test -s out.mp4
+              ffprobe -v error -show_entries stream=codec_name,width,height,duration -of csv=p=0 out.mp4
+            )
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: test-report, path: app/build/reports/tests }
+
+  # 2) whisper.cpp (same release as the desktop app) compiled for Android as an executable
+  whisper:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/cache@v4
+        id: cache
+        with:
+          path: whisper-out
+          key: whisper-android-${{ env.WHISPER_TAG }}-v1
+      - name: Build whisper-cli for arm64 (baseline + fast CPU variants)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          sudo apt-get update -q && sudo apt-get install -y -q ninja-build
+          NDK="${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}"
+          echo "Using NDK: $NDK"
+          git clone --depth 1 --branch "$WHISPER_TAG" https://github.com/ggml-org/whisper.cpp.git whisper.cpp
+          mkdir -p whisper-out
+          build() { # $1 = name, $2 = extra cmake flags
+            cmake -S whisper.cpp -B "build-$1" -G Ninja \
+              -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
+              -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-29 -DANDROID_STL=c++_static \
+              -DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON \
+              -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
+              -DWHISPER_BUILD_EXAMPLES=ON -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_SERVER=OFF -DWHISPER_SDL2=OFF \
+              -DGGML_OPENMP=OFF -DGGML_NATIVE=OFF -DGGML_LLAMAFILE=OFF $2
+            cmake --build "build-$1" --target whisper-cli -j"$(nproc)"
+            BIN=$(find "build-$1" -name whisper-cli -type f | head -n1)
+            "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" "$BIN"
+            cp "$BIN" "whisper-out/$3"
+          }
+          build base "" libwhisper_cli.so
+          build fast "-DGGML_CPU_ARM_ARCH=armv8.2-a+dotprod+fp16" libwhisper_cli_fast.so
+          ls -la whisper-out
+      - uses: actions/upload-artifact@v4
+        with: { name: whisper-cli-android, path: whisper-out }
+
+  # 3) The installable APK
+  apk:
+    needs: [engine, whisper]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: actions/download-artifact@v4
+        with: { name: whisper-cli-android, path: app/src/main/jniLibs/arm64-v8a }
+      - name: Create a debug signing key (sideload builds)
+        run: |
+          mkdir -p ~/.android
+          [ -f ~/.android/debug.keystore ] || keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android \
+            -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+      - name: Build APK
+        run: ./gradlew --no-daemon :app:assembleRelease
+      - name: Name the APK
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/release/*.apk dist/IdeawoodStudio-Artists-${GITHUB_RUN_NUMBER}.apk
+      - uses: actions/upload-artifact@v4
+        with: { name: IdeawoodStudio-Artists-apk, path: dist/*.apk }
+      - name: Publish release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with: { files: dist/*.apk }
