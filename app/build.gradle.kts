@@ -1,3 +1,5 @@
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -57,4 +59,13 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     // android.jar only has stubs of org.json; unit tests on the JVM need the real thing
     testImplementation("org.json:json:20240303")
+}
+
+// Show full test failures in the CI log (it is read from a log branch, not a browser)
+tasks.withType<Test>().configureEach {
+    testLogging {
+        exceptionFormat = TestExceptionFormat.FULL
+        showStandardStreams = true
+        events("passed", "failed")
+    }
 }
