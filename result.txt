@@ -1,0 +1,33 @@
+-rw-r--r-- 1 runner runner 83622491 Oct 19 23:28 a.aar
+-- armeabi-v7a libs:
+jni/armeabi-v7a/
+jni/armeabi-v7a/libavcodec.so
+jni/armeabi-v7a/libavcodec_neon.so
+jni/armeabi-v7a/libavdevice.so
+jni/armeabi-v7a/libavdevice_neon.so
+jni/armeabi-v7a/libavfilter.so
+jni/armeabi-v7a/libavfilter_neon.so
+jni/armeabi-v7a/libavformat.so
+jni/armeabi-v7a/libavformat_neon.so
+jni/armeabi-v7a/libavutil.so
+jni/armeabi-v7a/libavutil_neon.so
+jni/armeabi-v7a/libc++_shared.so
+jni/armeabi-v7a/libffmpegkit.so
+jni/armeabi-v7a/libffmpegkit_abidetect.so
+jni/armeabi-v7a/libffmpegkit_armv7a_neon.so
+jni/armeabi-v7a/libswresample.so
+jni/armeabi-v7a/libswresample_neon.so
+jni/armeabi-v7a/libswscale.so
+jni/armeabi-v7a/libswscale_neon.so
+-- pom deps:
+<?xml version="1.0" encoding="UTF-8"?>
+  <groupId>com.moizhassan.ffmpeg</groupId>
+  <artifactId>ffmpeg-kit-16kb</artifactId>
+  <version>6.1.1</version>
+      <groupId>com.arthenica</groupId>
+      <artifactId>smart-exception-java</artifactId>
+      <version>0.2.1</version>
+-- classes:
+com/arthenica/ffmpegkit/FFmpegKitConfig.class
+com/arthenica/ffmpegkit/FFprobeKit.class
+com/arthenica/ffmpegkit/MediaInformation.class
