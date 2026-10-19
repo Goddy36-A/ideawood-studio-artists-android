@@ -38,7 +38,7 @@ fun fmtTime(sec: Double): String {
 
 // ------------------------------------------------------------------------------------------ small building blocks
 @Composable
-fun Dropdown(label: String, options: List<String>, selected: String, onSelect: (String) -> Unit, modifier: Modifier = Modifier) {
+fun Dropdown(label: String, options: List<String>, selected: String, modifier: Modifier = Modifier, onSelect: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Column(modifier) {
         Text(label, style = MaterialTheme.typography.labelMedium)
@@ -127,8 +127,9 @@ fun SongScreen(vm: AppViewModel, onTapSync: () -> Unit) {
 
         SectionTitle("2. Give the lyrics their timing")
         Text("Speech model (downloaded once, then everything works offline):", style = MaterialTheme.typography.bodySmall)
-        Dropdown("Model", Asr.MODELS.keys.toList().map { Asr.MODELS.getValue(it).label }, Asr.MODELS.getValue(vm.modelKey).label,
-            { label -> vm.modelKey = Asr.MODELS.entries.first { it.value.label == label }.key })
+        Dropdown("Model", Asr.MODELS.keys.toList().map { Asr.MODELS.getValue(it).label }, Asr.MODELS.getValue(vm.modelKey).label) { label ->
+            vm.modelKey = Asr.MODELS.entries.first { it.value.label == label }.key
+        }
         val prog = vm.modelProgress
         if (prog != null) {
             LinearProgressIndicator(progress = { prog / 100f }, modifier = Modifier.fillMaxWidth())
@@ -141,8 +142,9 @@ fun SongScreen(vm: AppViewModel, onTapSync: () -> Unit) {
             }
         } else Text("Model ready.", color = MaterialTheme.colorScheme.primary)
         Dropdown("Language of the song", Asr.LANGUAGES.keys.toList(),
-            Asr.LANGUAGES.entries.firstOrNull { it.value == p.language }?.key ?: "Auto-detect",
-            { k -> vm.edit { it.language = Asr.LANGUAGES.getValue(k) } })
+            Asr.LANGUAGES.entries.firstOrNull { it.value == p.language }?.key ?: "Auto-detect") { k ->
+            vm.edit { it.language = Asr.LANGUAGES.getValue(k) }
+        }
         Button(onClick = { vm.autoSync() }, enabled = !running && p.audio.isNotBlank() && modelInstalled, modifier = Modifier.fillMaxWidth()) {
             Text("Auto-sync with the song")
         }
@@ -278,8 +280,9 @@ fun LookScreen(vm: AppViewModel) {
             }
         }
         SectionTitle("Text")
-        Dropdown("Font", CURATED_FONTS.map { it.label }, CURATED_FONTS.firstOrNull { it.family == st.font }?.label ?: st.font,
-            { l -> CURATED_FONTS.first { it.label == l }.let { c -> vm.styleEdit { s -> s.font = c.family; s.bold = c.bold } } })
+        Dropdown("Font", CURATED_FONTS.map { it.label }, CURATED_FONTS.firstOrNull { it.family == st.font }?.label ?: st.font) { l ->
+            CURATED_FONTS.first { it.label == l }.let { c -> vm.styleEdit { s -> s.font = c.family; s.bold = c.bold } }
+        }
         LabeledSlider("Size", st.size.toFloat(), 0.03f..0.16f) { v -> vm.styleEdit { it.size = v.toDouble() } }
         LabeledSlider("Vertical position", st.posY.toFloat(), 0.1f..0.95f) { v -> vm.styleEdit { it.posY = v.toDouble() } }
         ToggleRow("CAPITAL LETTERS", st.uppercase) { v -> vm.styleEdit { it.uppercase = v } }
