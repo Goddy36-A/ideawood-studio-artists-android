@@ -54,6 +54,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private var player: MediaPlayer? = null
 
     init {
+        CrashLog.install(app)
+        CrashLog.read(app)?.let { message = "Last crash: $it" }
         viewModelScope.launch(Dispatchers.IO) { paths.installFonts(); paths.cleanWork() }
     }
 
@@ -80,7 +82,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 pipeline.loadAudio(p, f, name)
                 message = "Song loaded (${p.duration.toInt() / 60}:${String.format(java.util.Locale.ROOT, "%02d", p.duration.toInt() % 60)})"
                 touch()
-            } catch (e: Exception) { message = e.message ?: "Could not open that file." }
+            } catch (e: Throwable) {
+                // Throwable (not just Exception) so native-library problems (UnsatisfiedLinkError etc.) show up as a message instead of closing the app
+                if (e is java.util.concurrent.CancellationException) throw e
+                CrashLog.save(getApplication(), "pickAudio", e)
+                message = "Could not open that file: ${e.javaClass.simpleName}: ${e.message ?: ""}".take(300)
+            }
         }
     }
 
