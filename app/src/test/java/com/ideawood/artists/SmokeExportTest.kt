@@ -3,7 +3,7 @@ package com.ideawood.artists
 import org.junit.Test
 import java.io.File
 
-/** Generates real render jobs in build/smoke/*; the CI workflow then runs each one through a real ffmpeg + libass. */
+/** Generates real render jobs in build/smoke/jobN; the CI workflow then runs each one through a real ffmpeg + libass. */
 class SmokeExportTest {
     @Test
     fun writeJobs() {
