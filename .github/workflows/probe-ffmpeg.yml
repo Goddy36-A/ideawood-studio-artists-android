@@ -1,0 +1,34 @@
+name: Probe FFmpeg AARs
+on:
+  push:
+    paths: [".github/workflows/probe-ffmpeg.yml"]
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check which FFmpeg AARs exist and which ABIs they contain
+        run: |
+          mkdir -p out && cd out
+          M=https://repo1.maven.org/maven2
+          for c in \
+            com/arthenica/ffmpeg-kit-full/6.0-2.LTS/ffmpeg-kit-full-6.0-2.LTS.aar \
+            com/arthenica/ffmpeg-kit-full/6.0-2/ffmpeg-kit-full-6.0-2.aar \
+            com/arthenica/ffmpeg-kit-full/5.1.LTS/ffmpeg-kit-full-5.1.LTS.aar \
+            com/arthenica/mobile-ffmpeg-full/4.4.LTS/mobile-ffmpeg-full-4.4.LTS.aar \
+            com/arthenica/mobile-ffmpeg-full/4.4/mobile-ffmpeg-full-4.4.aar \
+            com/moizhassan/ffmpeg/ffmpeg-kit-16kb/6.1.1/ffmpeg-kit-16kb-6.1.1.aar \
+            dev/ffmpegkit-maintained/ffmpeg-kit-full/6.0.3/ffmpeg-kit-full-6.0.3.aar ; do
+            f=$(basename "$c")
+            code=$(curl -s -L -o "$f" -w "%{http_code}" "$M/$c")
+            echo "== $c -> HTTP $code" | tee -a result.txt
+            if [ "$code" = "200" ]; then
+              unzip -l "$f" | grep -E "jni/[^/]+/lib(ffmpegkit|mobileffmpeg)\.so" | awk '{print "   "$4}' | tee -a result.txt
+              unzip -l "$f" | grep -E "jni/" | awk '{print $4}' | cut -d/ -f2 | sort | uniq -c | sed 's/^/   abi: /' | tee -a result.txt
+            fi
+          done
+          d=$(mktemp -d); cp result.txt "$d"/; cd /tmp && rm -rf pub && git init -q pub && cd pub
+          git checkout -q -b probe-logs && cp "$d"/result.txt . && git add -A
+          git -c user.name=ci -c user.email=ci@local commit -q -m probe
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" probe-logs
