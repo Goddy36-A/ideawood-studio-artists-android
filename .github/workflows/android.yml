@@ -31,7 +31,7 @@ jobs:
       - name: Parity tests (Kotlin vs desktop engine)
         run: |
           mkdir -p logs
-          ./gradlew --no-daemon --console=plain :app:testDebugUnitTest 2>&1 | tee logs/gradle-test.log
+          ./gradlew --no-daemon --console=plain --no-build-cache cleanTestDebugUnitTest :app:testDebugUnitTest 2>&1 | tee logs/gradle-test.log
       - name: Render real clips with the generated ffmpeg commands
         run: |
           sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
