@@ -142,7 +142,9 @@ object Parity {
             str("ASS $key", ass.getString(key), got)
         }
 
-        // --- render commands (the exact ffmpeg filter graph)
+        // --- render commands (the exact ffmpeg filter graph). The golden projects point at placeholder media files.
+        java.io.File("/tmp/iwtest").mkdirs()
+        for (f in listOf("img.jpg", "img2.jpg", "clip.mp4", "logo.png")) java.io.File("/tmp/iwtest", f).writeBytes(byteArrayOf(0))
         val cmds = g.getJSONObject("cmds")
         val projects = g.getJSONObject("projects")
         for (key in cmds.keys()) {
