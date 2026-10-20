@@ -9,7 +9,8 @@ object Lyrics {
             "break|drop|rap|spoken|ad[- ]?lib|instrumental)[^\\]\\)]*[\\]\\)]\\s*$",
         RegexOption.IGNORE_CASE,
     )
-    private val NORM: Pattern = Pattern.compile("[^\\w']+", Pattern.UNICODE_CHARACTER_CLASS)
+    // Android rejects UNICODE_CHARACTER_CLASS (there \\w is already Unicode-aware), so fall back to the plain pattern; desktop JVM keeps the flag for Python parity.
+    private val NORM: Pattern = try { Pattern.compile("[^\\w']+", Pattern.UNICODE_CHARACTER_CLASS) } catch (e: IllegalArgumentException) { Pattern.compile("[^\\w']+") }
     private val BRACKETS = Regex("[\\[\\]\\(\\)]")
     private val SPLIT_CUT = Regex("[,;:\u2013\u2014]\\s")
     const val MAX_LINE_CHARS = 60
