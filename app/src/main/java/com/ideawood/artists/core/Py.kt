@@ -6,7 +6,9 @@ import java.util.regex.Pattern
 
 /** Small helpers that reproduce Python behaviour exactly, so Kotlin output matches the desktop app. */
 object Py {
-    private val WS: Pattern = Pattern.compile("\\s+", Pattern.UNICODE_CHARACTER_CLASS)
+    // Android's regex engine rejects Pattern.UNICODE_CHARACTER_CLASS (IllegalArgumentException), which crashed this object's init.
+    // There \s is already Unicode-aware, so fall back to the plain pattern. The desktop JVM (tests) keeps the flag for exact Python parity.
+    private val WS: Pattern = try { Pattern.compile("\\s+", Pattern.UNICODE_CHARACTER_CLASS) } catch (e: IllegalArgumentException) { Pattern.compile("\\s+") }
 
     /** Python round(x) (banker's rounding) -> Int. */
     fun round(x: Double): Int = Math.rint(x).toInt()
