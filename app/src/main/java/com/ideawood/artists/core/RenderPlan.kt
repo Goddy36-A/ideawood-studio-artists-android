@@ -182,6 +182,38 @@ object RenderPlan {
         return Built(cmd, outDur)
     }
 
+    /**
+     * Second pass of the GPU render: takes the GPU-drawn background video (no sound) and adds the logo, the libass lyrics and the audio.
+     * For a preview the background clip starts at 0 but represents timeline position [t0], so the lyrics are timed with setpts.
+     */
+    fun buildOverlayCommand(p: Project, bgPath: String, outPath: String, assPath: String, fontsDir: String, encoder: Encoder,
+                            preview: Boolean, t0: Double, outDur: Double): Built {
+        val short = if (preview) 480 else (QUALITIES[p.quality] ?: 1080)
+        val (w, _) = frameSize(p.fmt, short)
+        val cmd = mutableListOf("-y", "-nostdin", "-i", bgPath)
+        if (preview) cmd += listOf("-ss", Py.fmt(t0, 2), "-t", Py.fmt(outDur, 2))
+        cmd += listOf("-i", p.audio)
+        val useLogo = p.logo.isNotEmpty() && File(p.logo).isFile
+        val filt = mutableListOf<String>()
+        var cur = "[0:v]"
+        if (preview) { filt.add("${cur}setpts=PTS+${Py.fmt(t0, 3)}/TB[vs]"); cur = "[vs]" }
+        if (useLogo) {
+            cmd += listOf("-i", p.logo)
+            filt.add("[2:v]scale=${even(w * p.logoSize)}:-2,format=rgba,colorchannelmixer=aa=0.9[lg]")
+            filt.add("$cur[lg]overlay=${logoPos(p.logoPos)}:format=auto[vl]")
+            cur = "[vl]"
+        }
+        val back = if (preview) ",setpts=PTS-STARTPTS" else ""
+        filt.add("${cur}ass=filename=${requireSafe(assPath)}:fontsdir=${requireSafe(fontsDir)}$back,format=yuv420p[v]")
+        if (p.normalizeAudio) filt.add("[1:a]loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000[a]")
+        else filt.add("[1:a]aresample=48000[a]")
+        cmd += listOf("-filter_complex", filt.joinToString(";"), "-map", "[v]", "-map", "[a]",
+            "-t", Py.fmt(outDur, 2), "-r", "$FPS")
+        cmd += encoderArgs(encoder, preview, short)
+        cmd += listOf("-c:a", "aac", "-b:a", "256k", "-ar", "48000", "-movflags", "+faststart", outPath)
+        return Built(cmd, outDur)
+    }
+
     /** One still frame at time [t] (background of that scene + lyrics) for the live look preview. */
     fun buildPreviewFrame(p: Project, t: Double, outPng: String, assPath: String, fontsDir: String): List<String> {
         val sc = p.scenes.firstOrNull { it.start <= t && t < it.end } ?: p.scenes.firstOrNull() ?: Scene(0.0, maxOf(p.duration, 1.0))

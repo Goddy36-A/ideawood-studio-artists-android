@@ -3,6 +3,7 @@ package com.ideawood.artists.engine
 import android.content.Context
 import android.os.StatFs
 import com.ideawood.artists.core.*
+import com.ideawood.artists.ui.CrashLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -70,6 +71,36 @@ class Pipeline(private val ctx: Context, private val paths: AppPaths, private va
             }
             val encoders = listOf(RenderPlan.Encoder.MEDIACODEC, RenderPlan.Encoder.MPEG4)
             var last = "unknown error"
+            val total = p.duration
+            val outDur = if (preview) maxOf(0.5, minOf(22.0, total - t0)) else total
+            // ---- fast path: GPU draws the background, ffmpeg only adds lyrics + audio. Any problem -> fall back to the standard renderer below.
+            if (GpuBackground.supports(p)) {
+                try {
+                    val bg = File(work, "bg.mp4")
+                    onStatus(if (preview) "Drawing the preview on the GPU..." else "Drawing the background on the GPU...")
+                    withContext(Dispatchers.Default) {
+                        GpuBackground().render(p, bg, preview, t0, outDur, { onProgress(it * 0.5) }, cancelled)
+                    }
+                    if (!bg.isFile || bg.length() == 0L) throw IllegalStateException("GPU background is empty")
+                    for ((i, enc) in encoders.withIndex()) {
+                        out.delete()
+                        val built = RenderPlan.buildOverlayCommand(p, bg.path, out.path, assFile.path, paths.fonts.path, enc, preview, t0, outDur)
+                        onStatus(if (i == 0) "Adding lyrics and sound..." else "Hardware encoder unavailable - using compatible mode...")
+                        val r = MediaTools.run(built.args, built.duration, { onProgress(50 + it * 0.5) }, cancelled)
+                        if (r.cancelled || cancelled()) throw java.util.concurrent.CancellationException("Cancelled")
+                        if (r.ok && out.length() > 0) { onProgress(100.0); return RenderOutput(out, built.duration) }
+                        last = r.log
+                    }
+                    throw IllegalStateException("Adding lyrics failed: " + last.takeLast(200))
+                } catch (e: java.util.concurrent.CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    CrashLog.save(ctx, "gpuRender", e)
+                    out.delete()
+                    onProgress(0.0)
+                    onStatus("GPU mode unavailable (${e.javaClass.simpleName}: ${(e.message ?: "").take(80)}) - using standard mode...")
+                }
+            }
             for ((i, enc) in encoders.withIndex()) {
                 out.delete()
                 val built = RenderPlan.buildCommand(p, out.path, assFile.path, paths.fonts.path, enc, preview, t0, if (preview) 22.0 else null)
