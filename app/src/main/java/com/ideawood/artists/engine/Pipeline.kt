@@ -76,12 +76,12 @@ class Pipeline(private val ctx: Context, private val paths: AppPaths, private va
             // ---- fast path: GPU draws the background, ffmpeg only adds lyrics + audio. Any problem -> fall back to the standard renderer below.
             if (GpuBackground.supports(p)) {
                 try {
-                    val bg = File(work, "bg.mp4")
+                    val bg = File(work, "bg.h264")
                     onStatus(if (preview) "Drawing the preview on the GPU..." else "Drawing the background on the GPU...")
                     withContext(Dispatchers.Default) {
                         GpuBackground().render(p, bg, preview, t0, outDur, { onProgress(it * 0.5) }, cancelled)
                     }
-                    if (!bg.isFile || bg.length() == 0L) throw IllegalStateException("GPU background is empty")
+                    if (!bg.isFile || bg.length() == 0L) throw IllegalStateException("GPU background is empty (exists=${bg.exists()}, bytes=${bg.length()})")
                     for ((i, enc) in encoders.withIndex()) {
                         out.delete()
                         val built = RenderPlan.buildOverlayCommand(p, bg.path, out.path, assFile.path, paths.fonts.path, enc, preview, t0, outDur)

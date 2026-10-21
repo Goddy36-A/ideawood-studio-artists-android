@@ -190,7 +190,8 @@ object RenderPlan {
                             preview: Boolean, t0: Double, outDur: Double): Built {
         val short = if (preview) 480 else (QUALITIES[p.quality] ?: 1080)
         val (w, _) = frameSize(p.fmt, short)
-        val cmd = mutableListOf("-y", "-nostdin", "-i", bgPath)
+        // the GPU background is a raw H.264 stream (no timestamps): tell ffmpeg its frame rate
+        val cmd = mutableListOf("-y", "-nostdin", "-f", "h264", "-framerate", "$FPS", "-i", bgPath)
         if (preview) cmd += listOf("-ss", Py.fmt(t0, 2), "-t", Py.fmt(outDur, 2))
         cmd += listOf("-i", p.audio)
         val useLogo = p.logo.isNotEmpty() && File(p.logo).isFile

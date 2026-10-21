@@ -8,7 +8,6 @@ import android.media.ExifInterface
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
-import android.media.MediaMuxer
 import android.opengl.EGL14
 import android.opengl.EGLConfig
 import android.opengl.EGLContext
@@ -26,7 +25,8 @@ import java.util.concurrent.CancellationException
 
 /**
  * Draws the BACKGROUND of the lyric video (pictures, Ken Burns, crossfades, grade, dim, vignette, grain) on the phone's GPU
- * with OpenGL ES, and encodes it with the hardware H.264 encoder straight into an mp4 (no sound, no lyrics).
+ * with OpenGL ES, and encodes it with the hardware H.264 encoder into a RAW H.264 stream (no sound, no lyrics, no MediaMuxer:
+ * a muxer that fails in stop() leaves an empty file, a raw stream cannot). ffmpeg wraps it in the next pass (see Pipeline).
  * The lyrics, logo and audio are added afterwards by a light ffmpeg pass (see Pipeline), so the lyric look stays exactly as before.
  */
 class GpuBackground {
@@ -227,7 +227,7 @@ void main() {
     }
 
     /**
-     * Renders [outDur] seconds starting at timeline position [t0] into [out] (video only).
+     * Renders [outDur] seconds starting at timeline position [t0] into [out] (raw Annex-B H.264, video only).
      * Must be called from ONE thread without suspending (it owns the EGL context).
      */
     fun render(p: Project, out: File, preview: Boolean, t0: Double, outDur: Double,
@@ -241,7 +241,7 @@ void main() {
         val frames = maxOf(1, Math.ceil(outDur * fps).toInt())
 
         var enc: MediaCodec? = null
-        var mux: MediaMuxer? = null
+        var os: java.io.FileOutputStream? = null
         var surf: Surface? = null
         var dpy: EGLDisplay = EGL14.EGL_NO_DISPLAY
         var ctx: EGLContext = EGL14.EGL_NO_CONTEXT
@@ -249,8 +249,7 @@ void main() {
         var prog = 0
         val cache = HashMap<Int, Tex>()
         var dummy = 0
-        var track = -1
-        var muxStarted = false
+        var wrote = 0L
         val info = MediaCodec.BufferInfo()
         try {
             val fmt = MediaFormat.createVideoFormat("video/avc", w, h).apply {
@@ -258,14 +257,16 @@ void main() {
                 setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
                 setInteger(MediaFormat.KEY_FRAME_RATE, fps)
                 setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2)
+                setInteger("prepend-sps-pps-to-idr-frames", 1)   // repeat SPS/PPS at every key frame (raw stream)
             }
             val e = MediaCodec.createEncoderByType("video/avc")
             enc = e
             e.configure(fmt, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
             surf = e.createInputSurface()
             e.start()
-            val m = MediaMuxer(out.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
-            mux = m
+            val o = java.io.FileOutputStream(out)
+            os = o
+            val ch = o.channel
 
             fun drain(end: Boolean) {
                 var idle = 0
@@ -274,15 +275,14 @@ void main() {
                     if (idx == MediaCodec.INFO_TRY_AGAIN_LATER) {
                         if (!end) return
                         if (++idle > 3000) throw IllegalStateException("The video encoder stopped responding.")
-                    } else if (idx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-                        track = m.addTrack(e.outputFormat); m.start(); muxStarted = true
                     } else if (idx >= 0) {
                         idle = 0
                         val buf = e.getOutputBuffer(idx)
-                        if (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) info.size = 0
-                        if (info.size > 0 && muxStarted && buf != null) {
+                        // codec-config buffers (SPS/PPS) are written too: a raw stream needs them
+                        if (info.size > 0 && buf != null) {
                             buf.position(info.offset); buf.limit(info.offset + info.size)
-                            m.writeSampleData(track, buf, info)
+                            while (buf.hasRemaining()) ch.write(buf)
+                            wrote += info.size
                         }
                         e.releaseOutputBuffer(idx, false)
                         if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) return
@@ -385,7 +385,8 @@ void main() {
             }
             e.signalEndOfInputStream()
             drain(true)
-            check(muxStarted) { "The video encoder produced no output." }
+            o.flush()
+            check(wrote > 0) { "The video encoder produced no output." }
         } finally {
             try { if (dpy != EGL14.EGL_NO_DISPLAY) {
                 for (t in cache.values) GLES20.glDeleteTextures(1, intArrayOf(t.id), 0)
@@ -399,8 +400,7 @@ void main() {
             try { enc?.stop() } catch (_: Throwable) {}
             try { enc?.release() } catch (_: Throwable) {}
             try { surf?.release() } catch (_: Throwable) {}
-            try { if (muxStarted) mux?.stop() } catch (_: Throwable) {}
-            try { mux?.release() } catch (_: Throwable) {}
+            try { os?.close() } catch (_: Throwable) {}
         }
     }
 }
