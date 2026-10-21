@@ -1,0 +1,26 @@
+lib/armeabi-v7a/libavfilter_neon.so: libass=20 xfade=1 fontconfig=39 x264=0 mediacodec=0
+lib/armeabi-v7a/libavfilter.so: libass=20 xfade=1 fontconfig=39 x264=0 mediacodec=0
+lib/armeabi-v7a/libavcodec_neon.so: libass=1 xfade=0 fontconfig=1 x264=4 mediacodec=1
+total 64388
+drwxr-xr-x 2 runner runner     4096 Oct 21 07:12 .
+drwxr-xr-x 4 runner runner     4096 Oct 21 07:12 ..
+-rw-r--r-- 1 runner runner     7252 Jan  1  1981 libandroidx.graphics.path.so
+-rw-r--r-- 1 runner runner 17220228 Jan  1  1981 libavcodec.so
+-rw-r--r-- 1 runner runner 19920420 Jan  1  1981 libavcodec_neon.so
+-rw-r--r-- 1 runner runner   691444 Jan  1  1981 libavdevice.so
+-rw-r--r-- 1 runner runner   691204 Jan  1  1981 libavdevice_neon.so
+-rw-r--r-- 1 runner runner  7793868 Jan  1  1981 libavfilter.so
+-rw-r--r-- 1 runner runner  7867644 Jan  1  1981 libavfilter_neon.so
+-rw-r--r-- 1 runner runner  3334684 Jan  1  1981 libavformat.so
+-rw-r--r-- 1 runner runner  3336892 Jan  1  1981 libavformat_neon.so
+-rw-r--r-- 1 runner runner   415076 Jan  1  1981 libavutil.so
+-rw-r--r-- 1 runner runner   412772 Jan  1  1981 libavutil_neon.so
+-rw-r--r-- 1 runner runner   610288 Jan  1  1981 libc++_shared.so
+-rw-r--r-- 1 runner runner   469568 Jan  1  1981 libffmpegkit.so
+-rw-r--r-- 1 runner runner    17256 Jan  1  1981 libffmpegkit_abidetect.so
+-rw-r--r-- 1 runner runner   469712 Jan  1  1981 libffmpegkit_armv7a_neon.so
+-rw-r--r-- 1 runner runner   215668 Jan  1  1981 libswresample.so
+-rw-r--r-- 1 runner runner   218000 Jan  1  1981 libswresample_neon.so
+-rw-r--r-- 1 runner runner   318588 Jan  1  1981 libswscale.so
+-rw-r--r-- 1 runner runner   318644 Jan  1  1981 libswscale_neon.so
+-rw-r--r-- 1 runner runner  1564012 Jan  1  1981 libwhisper_cli.so
