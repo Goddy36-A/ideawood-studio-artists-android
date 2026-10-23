@@ -78,10 +78,13 @@ class Pipeline(private val ctx: Context, private val paths: AppPaths, private va
                 try {
                     val bg = File(work, "bg.h264")
                     onStatus(if (preview) "Drawing the preview on the GPU..." else "Drawing the background on the GPU...")
-                    withContext(Dispatchers.Default) {
+                    val written = withContext(Dispatchers.Default) {
                         GpuBackground().render(p, bg, preview, t0, outDur, { onProgress(it * 0.5) }, cancelled)
                     }
-                    if (!bg.isFile || bg.length() == 0L) throw IllegalStateException("GPU background is empty (exists=${bg.exists()}, bytes=${bg.length()})")
+                    if (!bg.isFile || bg.length() == 0L) {
+                        throw IllegalStateException("GPU background is missing (file exists=${bg.exists()}, size=${bg.length()}, " +
+                            "encoder wrote=$written bytes, work folder exists=${work.exists()})")
+                    }
                     for ((i, enc) in encoders.withIndex()) {
                         out.delete()
                         val built = RenderPlan.buildOverlayCommand(p, bg.path, out.path, assFile.path, paths.fonts.path, enc, preview, t0, outDur)

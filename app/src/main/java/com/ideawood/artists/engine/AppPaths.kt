@@ -29,8 +29,15 @@ class AppPaths(private val ctx: Context) {
         } catch (_: Throwable) { /* ffmpeg also gets fontsdir= explicitly, so this is only a belt-and-braces step */ }
     }
 
+    /**
+     * Remove leftovers of crashed/old jobs. Never touches a running job (the app screen can be re-created while a long
+     * render keeps going in the background service), and only deletes folders that are clearly stale.
+     */
     fun cleanWork() {
-        ctx.cacheDir.listFiles()?.filter { it.name.startsWith("render_") || it.name.startsWith("asr_") || it.name.startsWith("frame_") }
+        if (JobRunner.state.value.running) return
+        val stale = System.currentTimeMillis() - 2 * 60 * 60 * 1000L
+        ctx.cacheDir.listFiles()
+            ?.filter { (it.name.startsWith("render_") || it.name.startsWith("asr_") || it.name.startsWith("frame_")) && it.lastModified() < stale }
             ?.forEach { it.deleteRecursively() }
     }
 }

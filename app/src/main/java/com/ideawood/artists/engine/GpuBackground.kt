@@ -231,7 +231,7 @@ void main() {
      * Must be called from ONE thread without suspending (it owns the EGL context).
      */
     fun render(p: Project, out: File, preview: Boolean, t0: Double, outDur: Double,
-               onProgress: (Double) -> Unit, cancelled: () -> Boolean) {
+               onProgress: (Double) -> Unit, cancelled: () -> Boolean): Long {
         val short = if (preview) 480 else (QUALITIES[p.quality] ?: 720)
         val (w, h) = frameSize(p.fmt, short)
         val fps = RenderPlan.FPS
@@ -402,5 +402,6 @@ void main() {
             try { surf?.release() } catch (_: Throwable) {}
             try { os?.close() } catch (_: Throwable) {}
         }
+        return wrote
     }
 }
