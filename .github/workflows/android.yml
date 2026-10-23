@@ -23,6 +23,7 @@ jobs:
   #    produces must really work in ffmpeg + libass.
   engine:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -33,6 +34,7 @@ jobs:
           mkdir -p logs
           ./gradlew --no-daemon --console=plain --no-build-cache cleanTestDebugUnitTest :app:testDebugUnitTest 2>&1 | tee logs/gradle-test.log
       - name: Render real clips with the generated ffmpeg commands
+        timeout-minutes: 8
         run: |
           sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
           cd app/build/smoke
@@ -42,7 +44,7 @@ jobs:
               ffmpeg -v error -y -f lavfi -i "sine=frequency=330:duration=70" song.wav
               ffmpeg -v error -y -f lavfi -i testsrc2=s=1920x1080 -frames:v 1 img.jpg
               mapfile -t ARGS < cmd.txt
-              ffmpeg -v error "${ARGS[@]}"
+              timeout 120 ffmpeg -nostdin -v error "${ARGS[@]}"
               test -s out.mp4
               ffprobe -v error -show_entries stream=codec_name,width,height,duration -of csv=p=0 out.mp4
             )
