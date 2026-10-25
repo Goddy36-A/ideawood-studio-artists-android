@@ -157,55 +157,84 @@ class WhisperRunner(private val ctx: Context, private val paths: AppPaths, priva
         throw IllegalStateException(report.toString())
     }
 
+    private val groq by lazy { GroqSpeech(settings) }
+
+    /** Cloud transcription is on and a key is entered. */
+    fun cloudReady() = settings.cloudSpeech && settings.groqKey.isNotBlank()
+
     /**
-     * The song is cut into ~90 s pieces (3 s overlap), each transcribed by a fresh whisper process. Memory is returned
-     * to Android between pieces, a kill only loses one piece, and finished pieces are saved so running Auto-sync again
-     * continues where it stopped. [ckptKey] comes from [ckptKey]; null disables saving.
+     * The song is cut into ~90 s pieces (3 s overlap). With cloud transcription on, each piece goes to Groq (Whisper
+     * large-v3); if Groq is unreachable or out of free quota, the rest is done by the on-phone engine, each piece in a
+     * fresh whisper process so memory is returned to Android between pieces. Finished pieces are saved, so running
+     * Auto-sync again continues where it stopped. [ckptKey] comes from [ckptKey]; null disables saving.
      */
     suspend fun transcribe(model: File, wav: File, language: String, prompt: String, onProgress: (Double) -> Unit,
                            cancelled: () -> Boolean, ckptKey: String? = null): Transcript = withContext(Dispatchers.IO) {
         val exe = cli()
-        if (!exe.isFile) throw IllegalStateException("The speech engine is missing from this build. Install the latest APK from GitHub Actions.")
+        var cloud = cloudReady()
+        if (!cloud && !exe.isFile) throw IllegalStateException("The speech engine is missing from this build. Install the latest APK from GitHub Actions.")
         val info = AudioChunker.readWavInfo(wav)
         val pieces = AudioChunker.plan(info.seconds, CHUNK_SECONDS, OVERLAP_SECONDS)
         val ckpt = ckptKey?.let { File(ctx.filesDir, "asr_ckpt/$it").also { d -> d.mkdirs() } }
         pruneCheckpoints(ckpt)
         val work = paths.newWorkDir("asr")
+        val notes = StringBuilder()
         try {
             var lang = language
-            val parts = mutableListOf<Pair<AudioChunker.Piece, com.ideawood.artists.core.Transcript>>()
+            val parts = mutableListOf<Pair<AudioChunker.Piece, Transcript>>()
             val n = pieces.size
             for (p in pieces) {
                 if (cancelled()) throw java.util.concurrent.CancellationException("Cancelled")
-                val saved = ckpt?.let { File(it, "c${p.index}.json") }
-                var json: JSONObject? = null
-                if (saved != null && saved.isFile) {
-                    json = try { JSONObject(saved.readText()) } catch (_: Exception) { saved.delete(); null }
+                val savedLocal = ckpt?.let { File(it, "c${p.index}.json") }
+                val savedCloud = ckpt?.let { File(it, "c${p.index}.groq.json") }
+                var tr: Transcript? = null
+                if (savedCloud != null && savedCloud.isFile) {
+                    tr = try { Asr.parseGroqJson(JSONObject(savedCloud.readText())) } catch (_: Exception) { savedCloud.delete(); null }
                 }
-                if (json == null) {
+                if (tr == null && savedLocal != null && savedLocal.isFile) {
+                    tr = try { Asr.parseWhisperJson(JSONObject(savedLocal.readText())) } catch (_: Exception) { savedLocal.delete(); null }
+                }
+                if (tr == null) {
                     val chunkWav = File(work, "chunk.wav")
                     AudioChunker.writeChunk(wav, info, p, chunkWav)
                     val label = "part ${p.index + 1} of $n"
-                    val text = try {
-                        transcribeChunk(exe, model, chunkWav, File(work, "out").path, lang, prompt, label,
-                            { f -> onProgress((p.index * 100.0 + f) / n) }, cancelled)
-                    } catch (e: java.util.concurrent.CancellationException) {
-                        throw e                               // a user cancel is not a failure (it is an IllegalStateException subclass)
-                    } catch (e: IllegalStateException) {
-                        throw IllegalStateException("Speech recognition failed at $label (${exe.name}, ${model.name}).\n${e.message}\n" +
-                            "Finished parts are saved: run Auto-sync again to continue from this part.")
+                    if (cloud) {
+                        onProgress(p.index * 100.0 / n)
+                        try {
+                            val text = groq.transcribe(chunkWav, lang, prompt)
+                            tr = Asr.parseGroqJson(JSONObject(text))
+                            savedCloud?.writeText(text)
+                        } catch (e: GroqSpeech.Failure) {
+                            if (e.fatal) throw IllegalStateException(e.message)
+                            cloud = false
+                            notes.append("Cloud: ${e.message} Using the phone's own engine for the rest.\n")
+                        } catch (e: org.json.JSONException) {
+                            cloud = false
+                            notes.append("Cloud: the answer could not be read. Using the phone's own engine for the rest.\n")
+                        }
                     }
-                    json = JSONObject(text)
-                    saved?.writeText(text)
+                    if (tr == null) {
+                        if (!exe.isFile) throw IllegalStateException("${notes}The speech engine is missing from this build.")
+                        if (!model.isFile) throw IllegalStateException("${notes}Download the speech model first (Song tab), or fix the cloud setting.")
+                        val text = try {
+                            transcribeChunk(exe, model, chunkWav, File(work, "out").path, lang, prompt, label,
+                                { f -> onProgress((p.index * 100.0 + f) / n) }, cancelled)
+                        } catch (e: java.util.concurrent.CancellationException) {
+                            throw e                               // a user cancel is not a failure (it is an IllegalStateException subclass)
+                        } catch (e: IllegalStateException) {
+                            throw IllegalStateException("${notes}Speech recognition failed at $label (${exe.name}, ${model.name}).\n${e.message}\n" +
+                                "Finished parts are saved: run Auto-sync again to continue from this part.")
+                        }
+                        tr = Asr.parseWhisperJson(JSONObject(text))
+                        savedLocal?.writeText(text)
+                        System.gc()
+                        delay(800)
+                    }
                     chunkWav.delete()
-                    System.gc()
-                    delay(800)
                 }
-                if (lang.isEmpty() || lang == "auto") {      // keep every piece in the language found in the first one
-                    val d = json.optJSONObject("result")?.optString("language", "") ?: ""
-                    if (d.isNotBlank()) lang = d
-                }
-                parts.add(p to Asr.parseWhisperJson(json))
+                val got: Transcript = tr ?: throw IllegalStateException("No transcript for part ${p.index + 1}.")
+                if ((lang.isEmpty() || lang == "auto") && got.language.isNotBlank()) lang = got.language   // keep every piece in the language found first
+                parts.add(p to got)
                 onProgress((p.index + 1) * 100.0 / n)
             }
             val merged = AudioChunker.merge(parts)
@@ -214,6 +243,17 @@ class WhisperRunner(private val ctx: Context, private val paths: AppPaths, priva
         } finally {
             work.deleteRecursively()
         }
+    }
+
+    private suspend fun cloudTest(): String {
+        if (settings.groqKey.isBlank()) return "turned on, but no Groq key entered yet."
+        val work = paths.newWorkDir("asr")
+        return try {
+            val wav = File(work, "c.wav"); silentWav(wav, 10)
+            val t0 = System.currentTimeMillis()
+            groq.transcribe(wav, "en", "")
+            "key accepted - ${GroqSpeech.MODEL} answered in ${String.format(java.util.Locale.ROOT, "%.1f", (System.currentTimeMillis() - t0) / 1000.0)} s."
+        } catch (e: GroqSpeech.Failure) { "FAILED - ${e.message}" } finally { work.deleteRecursively() }
     }
 
     // ----------------------------------------------------------------------- self test (Song tab > Test speech engine)
@@ -240,6 +280,7 @@ class WhisperRunner(private val ctx: Context, private val paths: AppPaths, priva
 
     suspend fun selfTest(model: File?): String = withContext(Dispatchers.IO) {
         val sb = StringBuilder(deviceInfo()).append("\n\n")
+        if (settings.cloudSpeech) sb.append("Cloud transcription (Groq): ").append(cloudTest()).append("\n\n")
         val exe = cli()
         if (!exe.isFile) return@withContext sb.append("Speech engine file is MISSING from this build (${exe.name}).").toString()
         sb.append("Engine: ${exe.name} (${exe.length() / 1000} KB)\n")

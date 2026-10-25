@@ -30,7 +30,9 @@ class Pipeline(private val ctx: Context, private val paths: AppPaths, private va
     suspend fun autoSync(p: Project, modelKey: String, language: String, onStatus: (String) -> Unit, onProgress: (Double) -> Unit,
                          cancelled: () -> Boolean): Syncer.Report {
         if (p.audio.isBlank()) throw IllegalStateException("Choose the song first.")
-        val (_, model) = models.best(modelKey) ?: throw IllegalStateException("Download the speech model first (Song tab).")
+        val model = models.best(modelKey)?.second
+            ?: if (whisper.cloudReady()) File("/nonexistent/no-local-model.bin")      // cloud only: no on-phone model needed
+            else throw IllegalStateException("Download the speech model first (Song tab), or turn on cloud transcription.")
         val work = paths.newWorkDir("asr")
         try {
             onStatus("Preparing the audio...")
