@@ -39,7 +39,9 @@ class Pipeline(private val ctx: Context, private val paths: AppPaths, private va
             if (r.cancelled) throw java.util.concurrent.CancellationException("Cancelled")
             if (!r.ok || !wav.exists()) throw IllegalStateException("Could not read audio from this file. ${r.log.takeLast(200)}")
             onStatus("Recognising speech on this phone...")
-            val tr = whisper.transcribe(model, wav, language, Syncer.hint(p.lyricsText), { onProgress(10 + it * 0.9) }, cancelled)
+            val hint = Syncer.hint(p.lyricsText)
+            val key = whisper.ckptKey(File(p.audio), model, language, hint)
+            val tr = whisper.transcribe(model, wav, language, hint, { onProgress(10 + it * 0.9) }, cancelled, key)
             return withContext(Dispatchers.Default) { Syncer.applyTranscript(p, tr) }
         } finally {
             work.deleteRecursively()

@@ -154,7 +154,7 @@ fun SongScreen(vm: AppViewModel, onTapSync: () -> Unit) {
             Asr.LANGUAGES.entries.firstOrNull { it.value == p.language }?.key ?: "Auto-detect") { k ->
             vm.edit { it.language = Asr.LANGUAGES.getValue(k) }
         }
-        ToggleRow("Fast mode (recommended on phones)", vm.speechFast) { v -> vm.setSpeechFast(v) }
+        ToggleRow("Fast mode (recommended on phones)", vm.speechFast) { v -> vm.updateSpeechFast(v) }
         Button(onClick = { vm.autoSync() }, enabled = !running && p.audio.isNotBlank() && modelInstalled, modifier = Modifier.fillMaxWidth()) {
             Text("Auto-sync with the song")
         }

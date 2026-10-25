@@ -16,6 +16,11 @@ class Settings(ctx: Context) {
         get() = sp.getBoolean("speech_fast", true)
         set(v) { sp.edit().putBoolean("speech_fast", v).apply() }
 
+    /** Low-memory mode: flash attention (same results, smaller buffers) when this engine build supports it. */
+    var speechLowMem: Boolean
+        get() = sp.getBoolean("speech_low_mem", true)
+        set(v) { sp.edit().putBoolean("speech_low_mem", v).apply() }
+
     var visualsBase: String
         get() = sp.getString("visuals_base", VisualsApi.DEFAULT_BASE) ?: VisualsApi.DEFAULT_BASE
         set(v) { sp.edit().putString("visuals_base", v.trim().trimEnd('/')).apply() }

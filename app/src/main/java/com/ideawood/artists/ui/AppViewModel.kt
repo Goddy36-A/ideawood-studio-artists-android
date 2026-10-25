@@ -249,7 +249,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun setSpeechFast(v: Boolean) { settings.speechFast = v; speechFast = v }
+    fun updateSpeechFast(v: Boolean) { settings.speechFast = v; speechFast = v }
 
     fun testSpeech() {
         if (speechTesting) return
