@@ -1,0 +1,71 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.10.2/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+> Task :app:cleanTestDebugUnitTest UP-TO-DATE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:generateDebugResValues
+> Task :app:checkDebugAarMetadata
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugResources
+> Task :app:packageDebugResources
+> Task :app:mergeDebugResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug
+> Task :app:parseDebugLocalResources
+
+> Task :app:processDebugMainManifest
+/home/runner/work/ideawood-studio-artists-android/ideawood-studio-artists-android/app/src/main/AndroidManifest.xml:13:9-41 Warning:
+	android:extractNativeLibs should not be specified in this source AndroidManifest.xml file. See https://d.android.com/guide/topics/manifest/application-element#extractNativeLibs for more information.
+The AGP Upgrade Assistant can remove the attribute from the AndroidManifest.xml file and update the build file accordingly. See https://d.android.com/studio/build/agp-upgrade-assistant for more information.
+
+> Task :app:processDebugManifest
+> Task :app:preDebugUnitTestBuild UP-TO-DATE
+> Task :app:javaPreCompileDebug
+> Task :app:javaPreCompileDebugUnitTest
+> Task :app:processDebugManifestForPackage
+> Task :app:processDebugResources
+> Task :app:compileDebugKotlin
+> Task :app:compileDebugJavaWithJavac NO-SOURCE
+> Task :app:processDebugJavaRes
+> Task :app:bundleDebugClassesToRuntimeJar
+> Task :app:bundleDebugClassesToCompileJar
+> Task :app:compileDebugUnitTestKotlin
+> Task :app:compileDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :app:processDebugUnitTestJavaRes
+
+> Task :app:testDebugUnitTest
+
+AudioChunkerTest > findsDataAfterExtraChunks PASSED
+
+AudioChunkerTest > writesPlayableChunk PASSED
+
+AudioChunkerTest > planCoversSongWithoutGaps PASSED
+
+AudioChunkerTest > mergeShiftsTimesAndDropsOverlapDuplicates PASSED
+
+GpuPlanTest > coverCropKeepsAspect PASSED
+
+GpuPlanTest > newSceneFadesInOverItsFirstSecond PASSED
+
+GpuPlanTest > noTransitionInsideAScene PASSED
+
+GpuPlanTest > noneMeansHardCuts PASSED
+
+GpuPlanTest > kenBurnsVariants PASSED
+
+GroqParseTest > assignsWordsToTheirSegments PASSED
+
+GroqParseTest > missingWordsStillGivesSegments PASSED
+
+GroqParseTest > mapsLanguageNameToCodeAndHidesNonSpeech PASSED
+
+ParityTest > matchesDesktopEngine PASSED
+
+SmokeExportTest > writeJobs PASSED
+
+VisualsTest > visualsLogic PASSED
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run-1792915792025.json
+
+BUILD SUCCESSFUL in 44s
+23 actionable tasks: 22 executed, 1 up-to-date
