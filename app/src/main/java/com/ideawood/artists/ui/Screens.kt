@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.ideawood.artists.core.*
@@ -324,6 +325,19 @@ fun VisualsScreen(vm: AppViewModel) {
         SectionTitle("4. Backgrounds")
         Text("One background per stanza; a repeated chorus shares the same one. Plain animated gradients are used where you add nothing.",
             style = MaterialTheme.typography.bodySmall)
+        SectionTitle("AI backgrounds")
+        Text("Finds a picture for each stanza from your lyrics (needs internet). The free server can take up to a minute to wake up. " +
+            "Pictures you picked yourself are kept.", style = MaterialTheme.typography.bodySmall)
+        OutlinedTextField(
+            value = vm.visualsKey, onValueChange = { vm.saveVisualsKey(it) }, label = { Text("Visuals key") }, singleLine = true,
+            visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
+        )
+        Dropdown("Media", VisualsApi.MEDIA, vm.visualsMedia) { v -> vm.visualsMedia = v }
+        if (vm.visualsMedia == "video") Text("Video backgrounds use the slower standard renderer.", style = MaterialTheme.typography.bodySmall)
+        Button(
+            onClick = { vm.generateVisuals() }, modifier = Modifier.fillMaxWidth(),
+            enabled = !vm.job.collectAsState().value.running && vm.visualsKey.isNotBlank() && p.scenes.isNotEmpty(),
+        ) { Text("Find backgrounds for my lyrics") }
         if (p.scenes.isEmpty()) Text("Sync the lyrics first - scenes are planned from them.")
         p.scenes.forEachIndexed { i, sc ->
             Card(Modifier.fillMaxWidth()) {

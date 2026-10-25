@@ -25,6 +25,8 @@ import java.io.File
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     val paths = AppPaths(app)
     val storage = Storage(app, paths)
+    private val settings = Settings(app)
+    private val cloud = CloudVisuals(settings)
     val models = ModelManager(app, paths)
     private val pipeline = Pipeline(app, paths, models)
     private val main = Handler(Looper.getMainLooper())
@@ -47,6 +49,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var previewClip by mutableStateOf<File?>(null)
     var savedVideo by mutableStateOf<Uri?>(null)
     var playingAt by mutableStateOf(-1.0)
+    var visualsKey by mutableStateOf(settings.visualsKey)
+        private set
+    var visualsMedia by mutableStateOf("image")
 
     val job = JobRunner.state
     private var downloadJob: Job? = null
@@ -238,6 +243,50 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             try { project.logo = storage.importMedia(uri, "logo").path; touch() }
             catch (e: Exception) { message = e.message ?: "Could not use that file." }
         }
+    }
+
+    // ----------------------------------------------------------------------- AI backgrounds (lyric-visual endpoint)
+    fun saveVisualsKey(k: String) { settings.visualsKey = k; visualsKey = settings.visualsKey }
+
+    /** One request for the whole song (one entry per stanza), then download each picture into app storage. */
+    fun generateVisuals() {
+        if (settings.visualsKey.isBlank()) { message = "Enter your visuals key first."; return }
+        val plan = VisualsApi.plan(project)
+        if (plan.isEmpty()) { message = if (project.scenes.isEmpty()) "Sync the lyrics first." else "Every scene already has your own picture/video."; return }
+        val media = visualsMedia
+        val ok = JobRunner.submit(getApplication(), "visuals", "Finding backgrounds") { ctl ->
+            ctl.status("Asking the visuals service (a free server can take up to a minute to wake up)...")
+            ctl.progress(2.0)
+            val items = cloud.fetch(plan.map { it.text }, media)
+            if (items.isEmpty()) throw IllegalStateException("The service found nothing for these lyrics.")
+            val results = HashMap<String, Applied>()
+            var lastError = ""
+            for ((i, pl) in plan.withIndex()) {
+                if (ctl.cancelled()) throw java.util.concurrent.CancellationException("Cancelled")
+                ctl.status("Downloading ${i + 1} of ${plan.size}...")
+                ctl.progress(15.0 + 85.0 * i / plan.size)
+                try {
+                    results[pl.key] = cloud.download(VisualsApi.pick(items, i), File(paths.media, "ai_${System.currentTimeMillis()}_$i"))
+                } catch (e: Exception) { lastError = e.message ?: e.javaClass.simpleName }
+            }
+            if (results.isEmpty()) throw IllegalStateException("None of the pictures could be downloaded. $lastError".trim())
+            val texts = plan.associate { it.key to it.text }
+            onMain {
+                val n = VisualsApi.apply(project, results, texts)
+                Scenes.shareByKey(project.scenes)
+                touch()
+                message = "Backgrounds added to $n scene${if (n == 1) "" else "s"}" +
+                    (if (results.size < plan.size) " (${plan.size - results.size} could not be downloaded)" else "")
+                viewModelScope.launch(Dispatchers.IO) { pruneAiMedia() }
+            }
+        }
+        if (!ok) message = "Another job is already running."
+    }
+
+    /** Delete downloaded AI pictures that no scene uses any more. */
+    private fun pruneAiMedia() {
+        val used = project.scenes.map { it.path }.toSet()
+        paths.media.listFiles()?.filter { it.name.startsWith("ai_") && it.path !in used }?.forEach { it.delete() }
     }
 
     // ----------------------------------------------------------------------- export
