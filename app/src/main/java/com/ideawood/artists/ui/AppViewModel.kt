@@ -52,6 +52,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var visualsKey by mutableStateOf(settings.visualsKey)
         private set
     var visualsMedia by mutableStateOf("image")
+    var speechFast by mutableStateOf(settings.speechFast)
+        private set
+    var speechReport by mutableStateOf<String?>(null)
+    var speechTesting by mutableStateOf(false)
 
     val job = JobRunner.state
     private var downloadJob: Job? = null
@@ -242,6 +246,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try { project.logo = storage.importMedia(uri, "logo").path; touch() }
             catch (e: Exception) { message = e.message ?: "Could not use that file." }
+        }
+    }
+
+    fun setSpeechFast(v: Boolean) { settings.speechFast = v; speechFast = v }
+
+    fun testSpeech() {
+        if (speechTesting) return
+        speechTesting = true
+        viewModelScope.launch {
+            speechReport = try { pipeline.speechTest(modelKey) } catch (e: Throwable) { "Test failed: ${e.message ?: e.javaClass.simpleName}" }
+            speechTesting = false
         }
     }
 

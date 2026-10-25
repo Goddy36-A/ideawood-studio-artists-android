@@ -12,7 +12,10 @@ class RenderOutput(val file: File, val seconds: Double)
 
 /** The long-running steps: transcribe + align, render the video, draw a preview frame. */
 class Pipeline(private val ctx: Context, private val paths: AppPaths, private val models: ModelManager) {
-    private val whisper = WhisperRunner(ctx, paths)
+    private val whisper = WhisperRunner(ctx, paths, Settings(ctx))
+
+    /** Self-test of the speech engine on this phone (shown in a dialog). */
+    suspend fun speechTest(modelKey: String): String = whisper.selfTest(models.best(modelKey)?.second)
 
     /** Choose the song: read its length and make sure it has sound. */
     suspend fun loadAudio(p: Project, file: File, originalName: String) {

@@ -11,6 +11,11 @@ class Settings(ctx: Context) {
         get() = sp.getString("visuals_key", "") ?: ""
         set(v) { sp.edit().putString("visuals_key", v.trim().trim('"', '\'').trim()).apply() }
 
+    /** Fast mode: no temperature fall-back / extra sampling in Whisper (much quicker on songs, tiny accuracy cost). */
+    var speechFast: Boolean
+        get() = sp.getBoolean("speech_fast", true)
+        set(v) { sp.edit().putBoolean("speech_fast", v).apply() }
+
     var visualsBase: String
         get() = sp.getString("visuals_base", VisualsApi.DEFAULT_BASE) ?: VisualsApi.DEFAULT_BASE
         set(v) { sp.edit().putString("visuals_base", v.trim().trimEnd('/')).apply() }

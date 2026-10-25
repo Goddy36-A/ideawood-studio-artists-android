@@ -115,6 +115,14 @@ fun SongScreen(vm: AppViewModel, onTapSync: () -> Unit) {
     val pickModel = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) vm.importModel(vm.modelKey, uri) }
     val pickLrc = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) vm.importLrc(uri) }
     val modelInstalled = vm.models.find(vm.modelKey) != null
+    vm.speechReport?.let { rep ->
+        AlertDialog(
+            onDismissRequest = { vm.speechReport = null },
+            confirmButton = { TextButton(onClick = { vm.speechReport = null }) { Text("Close") } },
+            title = { Text("Speech engine test") },
+            text = { Column(Modifier.verticalScroll(rememberScrollState())) { androidx.compose.foundation.text.selection.SelectionContainer { Text(rep, style = MaterialTheme.typography.bodySmall) } } },
+        )
+    }
     Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SectionTitle("1. Your song")
         Button(onClick = { pickAudio.launch(arrayOf("audio/*", "video/*")) }) { Text(if (p.audio.isBlank()) "Choose the song" else "Change song") }
@@ -146,6 +154,7 @@ fun SongScreen(vm: AppViewModel, onTapSync: () -> Unit) {
             Asr.LANGUAGES.entries.firstOrNull { it.value == p.language }?.key ?: "Auto-detect") { k ->
             vm.edit { it.language = Asr.LANGUAGES.getValue(k) }
         }
+        ToggleRow("Fast mode (recommended on phones)", vm.speechFast) { v -> vm.setSpeechFast(v) }
         Button(onClick = { vm.autoSync() }, enabled = !running && p.audio.isNotBlank() && modelInstalled, modifier = Modifier.fillMaxWidth()) {
             Text("Auto-sync with the song")
         }
@@ -153,6 +162,9 @@ fun SongScreen(vm: AppViewModel, onTapSync: () -> Unit) {
             OutlinedButton(onClick = onTapSync, enabled = !running && p.audio.isNotBlank() && p.lyricsText.isNotBlank()) { Text("Tap to sync") }
             OutlinedButton(onClick = { vm.spreadEvenly() }, enabled = p.audio.isNotBlank() && p.lyricsText.isNotBlank()) { Text("Spread evenly") }
             OutlinedButton(onClick = { pickLrc.launch(arrayOf("*/*")) }) { Text("Import LRC") }
+        }
+        OutlinedButton(onClick = { vm.testSpeech() }, enabled = !vm.speechTesting && !running) {
+            Text(if (vm.speechTesting) "Testing..." else "Test speech engine")
         }
         if (vm.syncReport.isNotEmpty()) Text(vm.syncReport, style = MaterialTheme.typography.bodyMedium)
         Text("Tip: for songs Whisper cannot recognise (Luganda, Runyankole...), use Tap to sync - the lyrics keep your spelling.",
