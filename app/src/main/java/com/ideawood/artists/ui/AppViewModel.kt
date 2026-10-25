@@ -54,6 +54,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     var visualsMedia by mutableStateOf("image")
     var speechFast by mutableStateOf(settings.speechFast)
         private set
+    var cloudSpeech by mutableStateOf(settings.cloudSpeech)
+        private set
+    var groqKey by mutableStateOf(settings.groqKey)
+        private set
     var speechReport by mutableStateOf<String?>(null)
     var speechTesting by mutableStateOf(false)
 
@@ -250,6 +254,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun updateSpeechFast(v: Boolean) { settings.speechFast = v; speechFast = v }
+
+    fun updateCloudSpeech(v: Boolean) { settings.cloudSpeech = v; cloudSpeech = v }
+    fun saveGroqKey(k: String) { settings.groqKey = k; groqKey = settings.groqKey }
 
     fun testSpeech() {
         if (speechTesting) return

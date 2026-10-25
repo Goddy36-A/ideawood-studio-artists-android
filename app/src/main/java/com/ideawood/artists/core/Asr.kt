@@ -66,7 +66,45 @@ object Asr {
         return tr
     }
 
-    private fun repairWordTimes(words: MutableList<Word>, s0: Double, s1: Double) {
+    private class RawSeg(val s0: Double, val s1: Double, val text: String, val words: MutableList<Word> = mutableListOf())
+
+    /** Parses Groq's verbose_json (segments + top-level word list) into the same Transcript the local engine produces. */
+    fun parseGroqJson(data: JSONObject, hideNonspeech: Boolean = true): Transcript {
+        val name = data.optString("language", "").trim()
+        val code = LANGUAGES.entries.firstOrNull { it.value != "auto" && it.key.equals(name, ignoreCase = true) }?.value
+            ?: (if (name.length == 2) name.lowercase() else "")
+        val tr = Transcript(language = code)
+        val segs = data.optJSONArray("segments") ?: return tr
+        val raws = ArrayList<RawSeg>()
+        for (i in 0 until segs.length()) {
+            val sg = segs.getJSONObject(i)
+            raws.add(RawSeg(sg.optDouble("start", 0.0), sg.optDouble("end", 0.0), sg.optString("text", "").trim()))
+        }
+        if (raws.isEmpty()) return tr
+        val ws = data.optJSONArray("words")
+        if (ws != null) {
+            var j = 0
+            for (k in 0 until ws.length()) {
+                val w = ws.getJSONObject(k)
+                val t = w.optString("word", "").trim()
+                if (t.isEmpty()) continue
+                val a = w.optDouble("start", -1.0)
+                val b = w.optDouble("end", -1.0)
+                val mid = if (a >= 0 && b >= 0) (a + b) / 2 else a
+                while (j < raws.size - 1 && mid >= raws[j + 1].s0) j++     // a word belongs to the segment it falls in
+                raws[j].words.add(Word(a, b, t))
+            }
+        }
+        for (r in raws) {
+            if (r.text.isEmpty() || (hideNonspeech && NONSPEECH.matches(r.text))) continue
+            val kept = r.words.toMutableList()
+            repairWordTimes(kept, r.s0, r.s1)
+            tr.segments.add(Segment(r.s0, maxOf(r.s1, r.s0 + 0.2), r.text, kept))
+        }
+        return tr
+    }
+
+    internal fun repairWordTimes(words: MutableList<Word>, s0: Double, s1: Double) {
         val n = words.size
         if (n == 0) return
         if (words.all { it.start < 0 || it.end < 0 }) {

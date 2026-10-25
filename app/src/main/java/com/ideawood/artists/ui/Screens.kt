@@ -155,7 +155,18 @@ fun SongScreen(vm: AppViewModel, onTapSync: () -> Unit) {
             vm.edit { it.language = Asr.LANGUAGES.getValue(k) }
         }
         ToggleRow("Fast mode (recommended on phones)", vm.speechFast) { v -> vm.updateSpeechFast(v) }
-        Button(onClick = { vm.autoSync() }, enabled = !running && p.audio.isNotBlank() && modelInstalled, modifier = Modifier.fillMaxWidth()) {
+        ToggleRow("Cloud transcription (Groq, free) - sends the audio over the internet", vm.cloudSpeech) { v -> vm.updateCloudSpeech(v) }
+        if (vm.cloudSpeech) {
+            OutlinedTextField(
+                value = vm.groqKey, onValueChange = { vm.saveGroqKey(it) }, label = { Text("Groq API key") }, singleLine = true,
+                visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
+            )
+            Text("Uses Whisper large-v3 on Groq's servers (about 2 hours of audio per hour on the free plan). The key stays on this phone. " +
+                "If Groq cannot be reached, the phone's own engine takes over. Use \"Test speech engine\" to check the key.",
+                style = MaterialTheme.typography.bodySmall)
+        }
+        Button(onClick = { vm.autoSync() }, enabled = !running && p.audio.isNotBlank() &&
+            (modelInstalled || (vm.cloudSpeech && vm.groqKey.isNotBlank())), modifier = Modifier.fillMaxWidth()) {
             Text("Auto-sync with the song")
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
