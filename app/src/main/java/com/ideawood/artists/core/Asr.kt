@@ -188,7 +188,9 @@ object Scenes {
         val byKey = LinkedHashMap<String, Scene>()
         for (s in old) if (s.kind != "gradient") byKey[s.key] = s
         for ((i, s) in new.withIndex()) {
-            val src = byKey[s.key] ?: old.getOrNull(i)?.takeIf { it.kind != "gradient" && Math.abs(it.start - s.start) < 3.0 }
+            // Same lyrics (same key) keep their picture. A scene whose lyrics changed only keeps a picture the artist chose themself;
+            // an AI picture found for the OLD words is dropped so it can never show up behind new lyrics.
+            val src = byKey[s.key] ?: old.getOrNull(i)?.takeIf { it.kind != "gradient" && it.source == "mine" && Math.abs(it.start - s.start) < 3.0 }
             if (src != null) { s.kind = src.kind; s.path = src.path; s.query = src.query; s.source = src.source; s.credit = src.credit }
         }
         return new

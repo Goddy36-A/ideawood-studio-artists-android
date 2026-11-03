@@ -135,7 +135,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val ok = JobRunner.submit(getApplication(), "sync", "Syncing lyrics") { ctl ->
             val rep = pipeline.autoSync(work, key, work.language, ctl::status, ctl::progress, ctl::cancelled)
             onMain {
-                project = work
+                val cur = project
+                cur.lines = work.lines
+                cur.scenes = Scenes.replanKeepMedia(cur.scenes, work.scenes)
                 syncReport = if (rep.mode == "aligned")
                     "Heard ${rep.heard} words; ${(rep.match * 100).toInt()}% of your lyrics matched exactly. ${rep.lines} lines timed. Check the Timing tab."
                 else "Wrote ${rep.lines} lines from what was heard. Edit them in the Timing tab."
@@ -213,8 +215,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun applyPreset(name: String) { PRESETS[name]?.let { project.style = it.copy(); touch(); } }
     fun styleEdit(f: (LyricStyle) -> Unit) { f(project.style); touch() }
 
+    private var previewAgain: Double? = null
+
     fun refreshPreview(t: Double) {
-        if (previewBusy) return
+        if (previewBusy) { previewAgain = t; return }   // remember the newest request and redraw when the current one ends
         previewBusy = true
         val work = copyOfProject()
         viewModelScope.launch {
@@ -223,7 +227,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val bmp = withContext(Dispatchers.IO) { BitmapFactory.decodeFile(png.path).also { png.delete() } }
                 previewImage = bmp
             } catch (e: Exception) { message = e.message ?: "Could not draw the preview." }
-            finally { previewBusy = false }
+            finally {
+                previewBusy = false
+                previewAgain?.let { previewAgain = null; refreshPreview(it) }
+            }
         }
     }
 
@@ -283,13 +290,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             if (items.isEmpty()) throw IllegalStateException("The service found nothing for these lyrics.")
             val results = HashMap<String, Applied>()
             var lastError = ""
+            val failed = ArrayList<Int>()
             for ((i, pl) in plan.withIndex()) {
                 if (ctl.cancelled()) throw java.util.concurrent.CancellationException("Cancelled")
                 ctl.status("Downloading ${i + 1} of ${plan.size}...")
                 ctl.progress(15.0 + 85.0 * i / plan.size)
                 try {
                     results[pl.key] = cloud.download(VisualsApi.pick(items, i), File(paths.media, "ai_${System.currentTimeMillis()}_$i"))
-                } catch (e: Exception) { lastError = e.message ?: e.javaClass.simpleName }
+                } catch (e: Exception) { if (e is java.util.concurrent.CancellationException) throw e; failed.add(i + 1); lastError = e.message ?: e.javaClass.simpleName }
             }
             if (results.isEmpty()) throw IllegalStateException("None of the pictures could be downloaded. $lastError".trim())
             val texts = plan.associate { it.key to it.text }
@@ -298,7 +306,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 Scenes.shareByKey(project.scenes)
                 touch()
                 message = "Backgrounds added to $n scene${if (n == 1) "" else "s"}" +
-                    (if (results.size < plan.size) " (${plan.size - results.size} could not be downloaded)" else "")
+                    (if (results.size < plan.size) ". Pictures ${failed.joinToString(", ")} could not be downloaded ($lastError) - those scenes still show their previous background; press the button again to retry." else "")
                 viewModelScope.launch(Dispatchers.IO) { pruneAiMedia() }
             }
         }
