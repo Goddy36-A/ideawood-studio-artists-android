@@ -227,6 +227,7 @@ fun TimingScreen(vm: AppViewModel) {
         }
         return
     }
+    val gen = vm.structRev   // read here so the rows are rebuilt whenever whole lists change
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 8.dp)) {
@@ -246,16 +247,17 @@ fun TimingScreen(vm: AppViewModel) {
                 }
             }
         }
-        items(count = lines.size, key = { "${vm.structRev}_$it" }) { i -> LineRow(vm, i, lines[i]) }
+        items(count = lines.size, key = { "${gen}_${System.identityHashCode(lines[it])}_$it" }) { i -> LineRow(vm, i, lines[i], gen) }
         item { Spacer(Modifier.height(24.dp)) }
     }
 }
 
 @Composable
-fun LineRow(vm: AppViewModel, i: Int, ln: LyricLine) {
-    var s by remember { mutableStateOf(String.format(Locale.ROOT, "%.2f", ln.start)) }
-    var e by remember { mutableStateOf(String.format(Locale.ROOT, "%.2f", ln.end)) }
-    var t by remember { mutableStateOf(ln.text) }
+fun LineRow(vm: AppViewModel, i: Int, ln: LyricLine, gen: Int) {
+    // Keyed on the line object + list generation: a new sync / import / split gives new text, never the previous boxes.
+    var s by remember(ln, gen) { mutableStateOf(String.format(Locale.ROOT, "%.2f", ln.start)) }
+    var e by remember(ln, gen) { mutableStateOf(String.format(Locale.ROOT, "%.2f", ln.end)) }
+    var t by remember(ln, gen) { mutableStateOf(ln.text) }
     val kb = KeyboardOptions(keyboardType = KeyboardType.Decimal)
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -429,12 +431,14 @@ fun ExportScreen(vm: AppViewModel) {
             confirmButton = { TextButton(onClick = { vm.previewClip = null; clip.delete() }) { Text("Close") } },
             title = { Text("Preview") },
             text = {
-                AndroidView(factory = { c ->
-                    VideoView(c).apply {
-                        setVideoPath(clip.path)
-                        setOnPreparedListener { it.isLooping = true; start() }
-                    }
-                }, modifier = Modifier.fillMaxWidth().height(300.dp))
+                key(clip.path) {
+                    AndroidView(factory = { c ->
+                        VideoView(c).apply {
+                            setVideoPath(clip.path)
+                            setOnPreparedListener { it.isLooping = true; start() }
+                        }
+                    }, modifier = Modifier.fillMaxWidth().height(300.dp))
+                }
             },
         )
     }

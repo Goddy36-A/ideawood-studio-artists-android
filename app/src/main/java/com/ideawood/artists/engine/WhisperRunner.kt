@@ -119,7 +119,7 @@ class WhisperRunner(private val ctx: Context, private val paths: AppPaths, priva
 
     /** Identifies this song+model+settings so a half-finished transcription can be resumed after the app was killed. */
     fun ckptKey(audio: File, model: File, language: String, prompt: String): String {
-        val raw = "${audio.length()}|${audio.lastModified()}|${model.name}|${model.length()}|$language|" +
+        val raw = "${audio.absolutePath}|${audio.length()}|${audio.lastModified()}|${cloudReady()}|${model.name}|${model.length()}|$language|" +
             "${settings.speechFast}|${settings.speechLowMem}|$CHUNK_SECONDS|$prompt"
         return MessageDigest.getInstance("SHA-1").digest(raw.toByteArray()).joinToString("") { "%02x".format(it) }.take(24)
     }
